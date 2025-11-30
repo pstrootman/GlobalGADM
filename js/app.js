@@ -3,6 +3,8 @@
  * Uses DuckDB-WASM to query GeoParquet files and Leaflet for visualization
  */
 
+import * as duckdb from 'https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.28.0/+esm';
+
 // Global state
 let map;
 let db = null;
@@ -24,8 +26,8 @@ async function init() {
     // Set up event listeners
     setupEventListeners();
 
-    // Initialize DuckDB in the background
-    initDuckDB();
+    // Initialize DuckDB
+    await initDuckDB();
 }
 
 // Initialize Leaflet map with dark basemap
@@ -50,34 +52,35 @@ async function initDuckDB() {
     showLoading('Initializing database...');
 
     try {
-        // Get the DuckDB bundle
-        const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles();
+        // Configure DuckDB bundles
+        const MANUAL_BUNDLES = {
+            mvp: {
+                mainModule: 'https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.28.0/dist/duckdb-mvp.wasm',
+                mainWorker: 'https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.28.0/dist/duckdb-browser-mvp.worker.js',
+            },
+            eh: {
+                mainModule: 'https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.28.0/dist/duckdb-eh.wasm',
+                mainWorker: 'https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.28.0/dist/duckdb-browser-eh.worker.js',
+            },
+        };
 
-        // Select a bundle based on browser checks
-        const bundle = await duckdb.selectBundle(JSDELIVR_BUNDLES);
+        // Select the best bundle for this browser
+        const bundle = await duckdb.selectBundle(MANUAL_BUNDLES);
 
-        // Instantiate the worker
-        const worker_url = URL.createObjectURL(
-            new Blob([`importScripts("${bundle.mainWorker}");`], { type: 'text/javascript' })
-        );
+        // Create worker
+        const worker = new Worker(bundle.mainWorker);
+        const logger = new duckdb.ConsoleLogger(duckdb.LogLevel.WARNING);
 
-        const worker = new Worker(worker_url);
-        const logger = new duckdb.ConsoleLogger();
+        // Instantiate DuckDB
         db = new duckdb.AsyncDuckDB(logger, worker);
-
-        await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
-        URL.revokeObjectURL(worker_url);
+        await db.instantiate(bundle.mainModule);
 
         // Create connection
         conn = await db.connect();
 
-        // Install and load spatial extension
+        // Load spatial extension
         await conn.query(`INSTALL spatial`);
         await conn.query(`LOAD spatial`);
-
-        // Install and load parquet extension (usually built-in)
-        await conn.query(`INSTALL parquet`);
-        await conn.query(`LOAD parquet`);
 
         duckDBReady = true;
         hideLoading();
@@ -85,8 +88,17 @@ async function initDuckDB() {
     } catch (error) {
         console.error('Failed to initialize DuckDB:', error);
         hideLoading();
-        alert('Failed to initialize database. Please refresh the page and try again.');
+        showError('Failed to initialize database: ' + error.message);
     }
+}
+
+// Show error message
+function showError(message) {
+    const errorDiv = document.createElement('div');
+    errorDiv.id = 'error-message';
+    errorDiv.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#c0392b;color:white;padding:20px 30px;border-radius:8px;z-index:9999;max-width:80%;text-align:center;';
+    errorDiv.innerHTML = `<strong>Error:</strong> ${message}<br><br><button onclick="location.reload()" style="padding:8px 16px;cursor:pointer;">Refresh Page</button>`;
+    document.body.appendChild(errorDiv);
 }
 
 // Wait for DuckDB to be ready
@@ -128,7 +140,7 @@ async function loadCountriesMetadata() {
     } catch (error) {
         console.error('Failed to load countries:', error);
         hideLoading();
-        alert('Failed to load country list. Please refresh the page.');
+        showError('Failed to load country list. Please refresh the page.');
     }
 }
 
@@ -224,16 +236,18 @@ async function loadBoundaries(level) {
     });
 
     // Wait for DuckDB to be ready
-    const ready = await waitForDuckDB();
-    if (!ready) {
-        hideLoading();
-        alert('Database is still initializing. Please wait a moment and try again.');
-        return;
+    if (!duckDBReady || !conn) {
+        const ready = await waitForDuckDB();
+        if (!ready) {
+            hideLoading();
+            showError('Database failed to initialize. Please refresh the page.');
+            return;
+        }
     }
 
     try {
         // Get the base URL for the data files
-        const baseUrl = window.location.href.replace(/\/[^\/]*$/, '/');
+        const baseUrl = new URL('.', window.location.href).href;
         const parquetUrl = `${baseUrl}data/${currentCountry.filename}`;
 
         // Query the parquet file
@@ -243,7 +257,6 @@ async function loadBoundaries(level) {
         const gidCol = `GID_${level}`;
 
         // Build query to get unique boundaries at this level
-        // We need to dissolve geometries by the admin level
         const query = `
             SELECT
                 ${nameCol} as name,
@@ -329,7 +342,7 @@ async function loadBoundaries(level) {
     } catch (error) {
         console.error('Failed to load boundaries:', error);
         hideLoading();
-        alert(`Failed to load boundaries: ${error.message}`);
+        showError(`Failed to load boundaries: ${error.message}`);
     }
 }
 
@@ -377,4 +390,8 @@ function hideLoading() {
 }
 
 // Start the application when DOM is ready
-document.addEventListener('DOMContentLoaded', init);
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+} else {
+    init();
+}
