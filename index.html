@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Global Administrative Boundaries - GADM Explorer</title>
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Header / Controls -->
+        <header id="controls">
+            <h1>GADM Explorer</h1>
+            <div class="control-group">
+                <label for="country-select">Select Country:</label>
+                <select id="country-select">
+                    <option value="">-- Select a country --</option>
+                </select>
+            </div>
+            <div class="control-group" id="admin-levels-container" style="display: none;">
+                <label>Administrative Level:</label>
+                <div id="admin-level-buttons"></div>
+            </div>
+            <div id="loading-indicator" style="display: none;">
+                <span class="spinner"></span>
+                <span id="loading-text">Loading...</span>
+            </div>
+        </header>
+
+        <!-- Map Container -->
+        <div id="map"></div>
+
+        <!-- Info Panel -->
+        <div id="info-panel" style="display: none;">
+            <button id="close-info">&times;</button>
+            <div id="info-content"></div>
+        </div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- DuckDB WASM -->
+    <script src="https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.28.0/dist/duckdb-browser-eh.js"></script>
+
+    <!-- WKB Parser -->
+    <script src="https://cdn.jsdelivr.net/npm/wkx@0.5.0/dist/wkx.min.js"></script>
+
+    <!-- Application JS -->
+    <script src="js/app.js"></script>
+</body>
+</html>
