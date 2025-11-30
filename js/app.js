@@ -5,8 +5,9 @@
 
 // Global state
 let map;
-let db;
-let conn;
+let db = null;
+let conn = null;
+let duckDBReady = false;
 let countriesData = null;
 let currentCountry = null;
 let currentLevel = null;
@@ -17,17 +18,17 @@ async function init() {
     // Initialize map
     initMap();
 
-    // Initialize DuckDB
-    await initDuckDB();
-
-    // Load countries metadata
+    // Load countries metadata (doesn't need DuckDB)
     await loadCountriesMetadata();
 
     // Set up event listeners
     setupEventListeners();
+
+    // Initialize DuckDB in the background
+    initDuckDB();
 }
 
-// Initialize Leaflet map
+// Initialize Leaflet map with dark basemap
 function initMap() {
     map = L.map('map', {
         center: [20, 0],
@@ -36,9 +37,11 @@ function initMap() {
         maxZoom: 18
     });
 
-    // Add OpenStreetMap tiles
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors | Data: <a href="https://gadm.org">GADM</a>'
+    // Dark basemap - CartoDB Dark Matter (shows country boundaries)
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a> | Data: <a href="https://gadm.org">GADM</a>',
+        subdomains: 'abcd',
+        maxZoom: 20
     }).addTo(map);
 }
 
@@ -76,13 +79,27 @@ async function initDuckDB() {
         await conn.query(`INSTALL parquet`);
         await conn.query(`LOAD parquet`);
 
+        duckDBReady = true;
         hideLoading();
         console.log('DuckDB initialized successfully');
     } catch (error) {
         console.error('Failed to initialize DuckDB:', error);
         hideLoading();
-        alert('Failed to initialize database. Please refresh the page.');
+        alert('Failed to initialize database. Please refresh the page and try again.');
     }
+}
+
+// Wait for DuckDB to be ready
+async function waitForDuckDB() {
+    if (duckDBReady && conn) return true;
+
+    // Wait up to 30 seconds for DuckDB to initialize
+    for (let i = 0; i < 60; i++) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        if (duckDBReady && conn) return true;
+    }
+
+    return false;
 }
 
 // Load countries metadata
@@ -206,6 +223,14 @@ async function loadBoundaries(level) {
         btn.classList.toggle('active', parseInt(btn.dataset.level) === level);
     });
 
+    // Wait for DuckDB to be ready
+    const ready = await waitForDuckDB();
+    if (!ready) {
+        hideLoading();
+        alert('Database is still initializing. Please wait a moment and try again.');
+        return;
+    }
+
     try {
         // Get the base URL for the data files
         const baseUrl = window.location.href.replace(/\/[^\/]*$/, '/');
@@ -275,12 +300,12 @@ async function loadBoundaries(level) {
             map.removeLayer(boundaryLayer);
         }
 
-        // Add new layer
+        // Add new layer with yellow border styling
         boundaryLayer = L.geoJSON(geojson, {
             style: {
-                color: '#3388ff',
-                weight: 2,
-                fillColor: '#3388ff',
+                color: '#FFD700',      // Gold/yellow border
+                weight: 3,              // Thick border
+                fillColor: '#FFD700',
                 fillOpacity: 0.1
             },
             onEachFeature: (feature, layer) => {
@@ -288,9 +313,10 @@ async function loadBoundaries(level) {
                     click: () => showFeatureInfo(feature.properties),
                     mouseover: (e) => {
                         e.target.setStyle({
-                            weight: 3,
-                            fillOpacity: 0.3
+                            weight: 5,          // Even thicker on hover
+                            fillOpacity: 0.25
                         });
+                        e.target.bringToFront();
                     },
                     mouseout: (e) => {
                         boundaryLayer.resetStyle(e.target);
