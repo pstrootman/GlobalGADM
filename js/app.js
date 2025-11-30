@@ -3,8 +3,6 @@
  * Uses DuckDB-WASM to query GeoParquet files and Leaflet for visualization
  */
 
-import * as duckdb from 'https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.28.0/+esm';
-
 // Global state
 let map;
 let db = null;
@@ -14,6 +12,9 @@ let countriesData = null;
 let currentCountry = null;
 let currentLevel = null;
 let boundaryLayer = null;
+
+// DuckDB module reference
+let duckdbModule = null;
 
 // Initialize the application
 async function init() {
@@ -52,6 +53,9 @@ async function initDuckDB() {
     showLoading('Initializing database...');
 
     try {
+        // Dynamically import DuckDB-WASM
+        duckdbModule = await import('https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.28.0/+esm');
+
         // Configure DuckDB bundles
         const MANUAL_BUNDLES = {
             mvp: {
@@ -65,14 +69,14 @@ async function initDuckDB() {
         };
 
         // Select the best bundle for this browser
-        const bundle = await duckdb.selectBundle(MANUAL_BUNDLES);
+        const bundle = await duckdbModule.selectBundle(MANUAL_BUNDLES);
 
         // Create worker
         const worker = new Worker(bundle.mainWorker);
-        const logger = new duckdb.ConsoleLogger(duckdb.LogLevel.WARNING);
+        const logger = new duckdbModule.ConsoleLogger(duckdbModule.LogLevel.WARNING);
 
         // Instantiate DuckDB
-        db = new duckdb.AsyncDuckDB(logger, worker);
+        db = new duckdbModule.AsyncDuckDB(logger, worker);
         await db.instantiate(bundle.mainModule);
 
         // Create connection
@@ -94,6 +98,10 @@ async function initDuckDB() {
 
 // Show error message
 function showError(message) {
+    // Remove any existing error
+    const existing = document.getElementById('error-message');
+    if (existing) existing.remove();
+
     const errorDiv = document.createElement('div');
     errorDiv.id = 'error-message';
     errorDiv.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#c0392b;color:white;padding:20px 30px;border-radius:8px;z-index:9999;max-width:80%;text-align:center;';
