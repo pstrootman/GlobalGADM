@@ -65,6 +65,9 @@ function initMap() {
     map.addControl(new maplibregl.NavigationControl(), 'bottom-right');
 
     map.on('load', () => {
+        // Force a resize to ensure map renders correctly
+        map.resize();
+
         // Add Level 0 (Countries) source and layer by default
         addLevelLayer(0, true);
 
