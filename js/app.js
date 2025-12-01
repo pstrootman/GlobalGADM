@@ -12,12 +12,12 @@ let countriesData = null;
 
 // Styling configuration
 const STYLES = {
-    0: { color: '#000000', fill: 'transparent', width: 1, opacity: 0 }, // Black (Default)
-    1: { color: '#651FFF', fill: '#651FFF', width: 3, opacity: 0.2 },   // Deep Purple/Indigo
-    2: { color: '#2979FF', fill: '#2979FF', width: 2, opacity: 0.2 },   // Bright Blue
-    3: { color: '#00B0FF', fill: '#00B0FF', width: 1.5, opacity: 0.2 }, // Light Blue
-    4: { color: '#00E5FF', fill: '#00E5FF', width: 1.5, opacity: 0.2 }, // Cyan Accent
-    5: { color: '#1DE9B6', fill: '#1DE9B6', width: 1.5, opacity: 0.2 }  // Teal Accent
+    0: { color: '#FFD700', fill: 'transparent', width: 2, opacity: 0 },   // Golden Sun (Country)
+    1: { color: '#FF6600', fill: '#FF6600', width: 1.5, opacity: 0.2 },   // Sunset Orange (Level 1)
+    2: { color: '#00C5CD', fill: '#00C5CD', width: 1, opacity: 0.2 },     // Turquoise Waters (Level 2)
+    3: { color: '#00C5CD', fill: '#00C5CD', width: 0.8, opacity: 0.2 },   // Turquoise (Level 3)
+    4: { color: '#00C5CD', fill: '#00C5CD', width: 0.5, opacity: 0.2 },   // Turquoise (Level 4)
+    5: { color: '#00C5CD', fill: '#00C5CD', width: 0.5, opacity: 0.2 }    // Turquoise (Level 5)
 };
 
 // Initialize the application
@@ -46,26 +46,14 @@ function initMap() {
         container: 'map',
         style: {
             version: 8,
-            sources: {
-                'carto-light': {
-                    type: 'raster',
-                    tiles: [
-                        'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png',
-                        'https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png',
-                        'https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png',
-                        'https://d.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png'
-                    ],
-                    tileSize: 256,
-                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
-                }
-            },
+            sources: {},
             layers: [
                 {
-                    id: 'basemap',
-                    type: 'raster',
-                    source: 'carto-light',
-                    minzoom: 0,
-                    maxzoom: 20
+                    id: 'background',
+                    type: 'background',
+                    paint: {
+                        'background-color': '#002244' // Deep Ocean Blue
+                    }
                 }
             ]
         },
@@ -78,6 +66,52 @@ function initMap() {
     map.on('load', () => {
         // Add Level 0 (Countries) source and layer by default
         addLevelLayer(0, true);
+
+        // Add Country Labels
+        // We need to ensure the source exists first, which addLevelLayer(0) does.
+        // But addLevelLayer is async in terms of source loading? No, addSource is sync.
+        // Let's add the label layer after a brief moment or ensure it uses the same source.
+        // Actually, addLevelLayer adds the source 'gadm-level0'. We can reuse it.
+
+        if (!map.getLayer('country-labels')) {
+            map.addLayer({
+                id: 'country-labels',
+                type: 'symbol',
+                source: 'gadm-level0',
+                'source-layer': 'countries',
+                layout: {
+                    'text-field': ['get', 'NAME_0'],
+                    'text-font': ['Open Sans Bold'], // MapLibre default fonts might need checking, usually 'Open Sans Regular' is available if using a style that defines glyphs. 
+                    // Wait, we provided a raw style object without 'glyphs'. MapLibre needs a glyphs URL for text.
+                    // We can use a public glyphs URL.
+                    'text-size': 12,
+                    'text-transform': 'uppercase',
+                    'text-variable-anchor': ['center'],
+                    'text-justify': 'auto'
+                },
+                paint: {
+                    'text-color': '#FFFFFF',
+                    'text-halo-color': '#002244',
+                    'text-halo-width': 2
+                }
+            });
+        }
+    });
+
+    // Set glyphs URL for text rendering
+    map.setStyle({
+        version: 8,
+        glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
+        sources: {},
+        layers: [
+            {
+                id: 'background',
+                type: 'background',
+                paint: {
+                    'background-color': '#002244'
+                }
+            }
+        ]
     });
 }
 
