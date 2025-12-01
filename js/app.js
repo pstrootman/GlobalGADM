@@ -80,7 +80,7 @@ function initMap() {
 // Add a PMTiles source and layer for a specific admin level
 function addLevelLayer(level, isVisible = false) {
     const sourceId = `gadm-level${level}`;
-    
+
     if (!map.getSource(sourceId)) {
         map.addSource(sourceId, {
             type: 'vector',
@@ -135,7 +135,7 @@ function addLevelLayer(level, isVisible = false) {
 // Toggle layer visibility
 function setLayerVisibility(level, isVisible) {
     const visibility = isVisible ? 'visible' : 'none';
-    
+
     if (map.getLayer(`layer-line-${level}`)) {
         map.setLayoutProperty(`layer-line-${level}`, 'visibility', visibility);
     }
@@ -161,7 +161,7 @@ async function loadCountriesMetadata() {
                 option.textContent = country.name;
                 select.appendChild(option);
             });
-            
+
     } catch (error) {
         console.error('Failed to load countries:', error);
         alert('Failed to load country list. Please ensure data/countries.json exists.');
@@ -186,7 +186,7 @@ function handleCountryChange(event) {
     const country = countriesData.find(c => c.name === countryName);
     if (country) {
         currentCountry = country;
-        
+
         // Fly to country
         map.fitBounds([
             [country.bounds[0], country.bounds[1]], // sw
@@ -203,7 +203,7 @@ function updateAdminLevelUI(country) {
     const container = document.getElementById('admin-levels-container');
     const buttonsDiv = document.getElementById('admin-level-buttons');
     const infoDiv = document.getElementById('level-info');
-    
+
     container.style.display = 'flex';
     buttonsDiv.innerHTML = '';
     infoDiv.textContent = `This country has ${country.admin_levels.length} administrative levels.`;
@@ -224,16 +224,16 @@ function createLevelButton(level, label, active = false) {
     btn.onclick = () => {
         // Toggle active state
         const isActive = btn.classList.toggle('active');
-        
+
         // Ensure source/layer exists
         addLevelLayer(level, isActive);
-        
+
         // Toggle visibility
         setLayerVisibility(level, isActive);
     };
-    
+
     document.getElementById('admin-level-buttons').appendChild(btn);
-    
+
     // Initialize layer if it doesn't exist, but respect 'active' for visibility
     addLevelLayer(level, active);
     setLayerVisibility(level, active);
@@ -241,7 +241,7 @@ function createLevelButton(level, label, active = false) {
 
 function resetAdminLevels() {
     document.getElementById('admin-levels-container').style.display = 'none';
-    
+
     // Hide all levels except 0
     for (let i = 1; i <= 5; i++) {
         setLayerVisibility(i, false);
@@ -252,26 +252,26 @@ function resetAdminLevels() {
 // Handle feature click (popup)
 function handleFeatureClick(e, level) {
     const props = e.features[0].properties;
-    
+
     let content = `<div class="popup-title">${props[`NAME_${level}`] || props.name || 'Unknown'}</div>`;
     content += `<table class="popup-table">`;
-    
+
     // Hierarchy
     if (level > 0) content += `<tr><td>Country</td><td>${props.NAME_0 || props.country}</td></tr>`;
     if (level > 1) content += `<tr><td>Level 1</td><td>${props.NAME_1}</td></tr>`;
     if (level > 2) content += `<tr><td>Level 2</td><td>${props.NAME_2}</td></tr>`;
-    
+
     // Type
     const type = props[`TYPE_${level}`] || props.type;
     const engType = props[`ENGTYPE_${level}`] || props.engtype;
-    
+
     if (type) content += `<tr><td>Type</td><td>${type}</td></tr>`;
     if (engType && engType !== type) content += `<tr><td>Type (En)</td><td>${engType}</td></tr>`;
-    
+
     // Codes
     const gid = props[`GID_${level}`] || props.gid;
     if (gid) content += `<tr><td>GID</td><td>${gid}</td></tr>`;
-    
+
     content += `</table>`;
 
     new maplibregl.Popup()
@@ -279,3 +279,6 @@ function handleFeatureClick(e, level) {
         .setHTML(content)
         .addTo(map);
 }
+
+// Start the application
+init();
