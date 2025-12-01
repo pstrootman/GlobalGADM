@@ -3,8 +3,6 @@
  * Uses MapLibre GL JS and PMTiles
  */
 
-import { Protocol } from "https://esm.sh/pmtiles@4.3.0";
-
 // Global state
 let map;
 let protocol;
@@ -14,7 +12,7 @@ let countriesData = null;
 
 // Styling configuration
 const STYLES = {
-    0: { color: '#D500F9', fill: 'transparent', width: 4, opacity: 0 }, // Vibrant Purple/Magenta
+    0: { color: '#666666', fill: 'transparent', width: 1, opacity: 0 }, // Neutral Gray (Default)
     1: { color: '#651FFF', fill: '#651FFF', width: 3, opacity: 0.2 },   // Deep Purple/Indigo
     2: { color: '#2979FF', fill: '#2979FF', width: 2, opacity: 0.2 },   // Bright Blue
     3: { color: '#00B0FF', fill: '#00B0FF', width: 1.5, opacity: 0.2 }, // Light Blue
@@ -22,12 +20,90 @@ const STYLES = {
     5: { color: '#1DE9B6', fill: '#1DE9B6', width: 1.5, opacity: 0.2 }  // Teal Accent
 };
 
+// ... (init and initMap functions remain unchanged) ...
+
+// Handle country selection
+function handleCountryChange(event) {
+    const countryName = event.target.value;
+
+    // Reset if empty
+    if (!countryName) {
+        currentCountry = null;
+        resetAdminLevels();
+
+        // Reset Level 0 style
+        if (map.getLayer('layer-line-0')) {
+            map.setPaintProperty('layer-line-0', 'line-color', STYLES[0].color);
+            map.setPaintProperty('layer-line-0', 'line-width', STYLES[0].width);
+        }
+        return;
+    }
+
+    const country = countriesData.find(c => c.name === countryName);
+    if (country) {
+        currentCountry = country;
+
+        // Fly to country
+        map.fitBounds([
+            [country.bounds[0], country.bounds[1]], // sw
+            [country.bounds[2], country.bounds[3]]  // ne
+        ], { padding: 50 });
+
+        // Highlight Level 0 (Country Boundary)
+        if (map.getLayer('layer-line-0')) {
+            // Use data-driven styling to highlight selected country
+            // Assuming 'GID_0' or 'NAME_0' matches. Using 'NAME_0' (or 'name') based on metadata.
+            // Metadata has 'iso_a2' or similar? Let's use name for now as it matches dropdown.
+            // Actually, GADM usually has 'GID_0'. Let's try to match by name if possible, or ISO.
+            // The metadata `countries.json` likely has ISO.
+
+            // Highlight logic: Purple (#D500F9) and Thick (4px) for selected, default for others.
+            map.setPaintProperty('layer-line-0', 'line-color', [
+                'case',
+                ['==', ['get', 'NAME_0'], country.name],
+                '#D500F9',
+                STYLES[0].color
+            ]);
+            map.setPaintProperty('layer-line-0', 'line-width', [
+                'case',
+                ['==', ['get', 'NAME_0'], country.name],
+                4,
+                STYLES[0].width
+            ]);
+        }
+
+        // Update UI for admin levels
+        updateAdminLevelUI(country);
+
+        // Apply filter to existing admin levels if they are visible
+        // We will do this in setLayerVisibility or a new helper
+        updateLayerFilters(country.name);
+    }
+}
+
+function updateLayerFilters(countryName) {
+    // Filter all admin levels (1-5) to only show features for this country
+    for (let i = 1; i <= 5; i++) {
+        const layerId = `layer-line-${i}`;
+        const fillId = `layer-fill-${i}`;
+
+        const filter = ['==', ['get', 'NAME_0'], countryName];
+
+        if (map.getLayer(layerId)) {
+            map.setFilter(layerId, filter);
+        }
+        if (map.getLayer(fillId)) {
+            map.setFilter(fillId, filter);
+        }
+    }
+}
+
 // Initialize the application
 async function init() {
     try {
         // Initialize PMTiles protocol
-        protocol = new Protocol({ metadata: true });
-        maplibregl.addProtocol("pmtiles", protocol.tile);
+        protocol = new pmtiles.Protocol({ metadata: true });
+        maplibregl.addProtocol("pmtiles", (request, abortController) => protocol.tile(request, abortController));
 
         // Initialize map
         initMap();
@@ -98,11 +174,11 @@ function addLevelLayer(level, isVisible = false) {
     // Line layer (borders)
     const lineLayerId = `layer-line-${level}`;
     if (!map.getLayer(lineLayerId)) {
-        map.addLayer({
+        const layerDef = {
             id: lineLayerId,
             type: 'line',
             source: sourceId,
-            'source-layer': level === 0 ? 'countries' : `admin${level}`, // Adjust based on tippecanoe layer name
+            'source-layer': level === 0 ? 'countries' : `admin${level}`,
             layout: {
                 'visibility': isVisible ? 'visible' : 'none'
             },
@@ -110,13 +186,20 @@ function addLevelLayer(level, isVisible = false) {
                 'line-color': STYLES[level].color,
                 'line-width': STYLES[level].width
             }
-        });
+        };
+
+        // Apply filter if level > 0 and a country is selected
+        if (level > 0 && currentCountry) {
+            layerDef.filter = ['==', ['get', 'NAME_0'], currentCountry.name];
+        }
+
+        map.addLayer(layerDef);
     }
 
     // Fill layer (interactive)
     const fillLayerId = `layer-fill-${level}`;
     if (!map.getLayer(fillLayerId)) {
-        map.addLayer({
+        const fillDef = {
             id: fillLayerId,
             type: 'fill',
             source: sourceId,
@@ -129,7 +212,14 @@ function addLevelLayer(level, isVisible = false) {
                 'fill-opacity': STYLES[level].opacity,
                 'fill-outline-color': STYLES[level].color
             }
-        }, lineLayerId); // Place fill below line
+        };
+
+        // Apply filter if level > 0 and a country is selected
+        if (level > 0 && currentCountry) {
+            fillDef.filter = ['==', ['get', 'NAME_0'], currentCountry.name];
+        }
+
+        map.addLayer(fillDef, lineLayerId); // Place fill below line
 
         // Interactions
         map.on('click', fillLayerId, (e) => handleFeatureClick(e, level));
