@@ -12,7 +12,7 @@ let countriesData = null;
 
 // Styling configuration
 const STYLES = {
-    0: { color: '#666666', fill: 'transparent', width: 1, opacity: 0 }, // Neutral Gray (Default)
+    0: { color: '#000000', fill: 'transparent', width: 1, opacity: 0 }, // Black (Default)
     1: { color: '#651FFF', fill: '#651FFF', width: 3, opacity: 0.2 },   // Deep Purple/Indigo
     2: { color: '#2979FF', fill: '#2979FF', width: 2, opacity: 0.2 },   // Bright Blue
     3: { color: '#00B0FF', fill: '#00B0FF', width: 1.5, opacity: 0.2 }, // Light Blue
@@ -62,7 +62,7 @@ function handleCountryChange(event) {
                 'case',
                 ['==', ['get', 'NAME_0'], country.name],
                 '#D500F9',
-                STYLES[0].color
+                '#000000'
             ]);
             map.setPaintProperty('layer-line-0', 'line-width', [
                 'case',
