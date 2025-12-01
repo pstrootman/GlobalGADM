@@ -24,8 +24,26 @@ const STYLES = {
 async function init() {
     // Initialize PMTiles protocol
     protocol = new pmtiles.Protocol();
-    maplibregl.addProtocol("pmtiles", (request) => {
-        return protocol.tile(request);
+    maplibregl.addProtocol("pmtiles", (request, abortController) => {
+        return new Promise((resolve, reject) => {
+            const callback = (err, data) => {
+                if (err) {
+                    reject(err);
+                } else {
+                    resolve(data);
+                }
+            };
+            const cancelable = protocol.tile(request, callback);
+
+            // Handle cancellation
+            if (abortController && abortController.signal) {
+                abortController.signal.addEventListener('abort', () => {
+                    if (cancelable && cancelable.cancel) {
+                        cancelable.cancel();
+                    }
+                });
+            }
+        });
     });
 
     // Initialize map
