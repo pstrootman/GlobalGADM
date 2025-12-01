@@ -84,7 +84,7 @@ function addLevelLayer(level, isVisible = false) {
     if (!map.getSource(sourceId)) {
         map.addSource(sourceId, {
             type: 'vector',
-            url: `pmtiles://data/gadm_level${level}.pmtiles`,
+            url: `pmtiles://https://pub-381407fb739040e09035a4fb8219a3af.r2.dev/gadm_level${level}.pmtiles`,
             attribution: 'GADM'
         });
     }
