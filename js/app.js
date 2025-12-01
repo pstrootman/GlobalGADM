@@ -12,12 +12,12 @@ let countriesData = null;
 
 // Styling configuration
 const STYLES = {
-    0: { color: '#D500F9', fill: 'transparent', width: 3, opacity: 0 }, // Vibrant Purple/Magenta
-    1: { color: '#651FFF', fill: '#651FFF', width: 2, opacity: 0.2 },   // Deep Purple/Indigo
-    2: { color: '#2979FF', fill: '#2979FF', width: 1.5, opacity: 0.2 }, // Bright Blue
-    3: { color: '#00B0FF', fill: '#00B0FF', width: 1, opacity: 0.2 },   // Light Blue
-    4: { color: '#00E5FF', fill: '#00E5FF', width: 1, opacity: 0.2 },   // Cyan Accent
-    5: { color: '#1DE9B6', fill: '#1DE9B6', width: 1, opacity: 0.2 }    // Teal Accent
+    0: { color: '#D500F9', fill: 'transparent', width: 4, opacity: 0 }, // Vibrant Purple/Magenta
+    1: { color: '#651FFF', fill: '#651FFF', width: 3, opacity: 0.2 },   // Deep Purple/Indigo
+    2: { color: '#2979FF', fill: '#2979FF', width: 2, opacity: 0.2 },   // Bright Blue
+    3: { color: '#00B0FF', fill: '#00B0FF', width: 1.5, opacity: 0.2 }, // Light Blue
+    4: { color: '#00E5FF', fill: '#00E5FF', width: 1.5, opacity: 0.2 }, // Cyan Accent
+    5: { color: '#1DE9B6', fill: '#1DE9B6', width: 1.5, opacity: 0.2 }  // Teal Accent
 };
 
 // Initialize the application
