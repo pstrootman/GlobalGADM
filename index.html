@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Global Administrative Boundaries - GADM Explorer</title>
 
-    <!-- Leaflet CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- MapLibre GL JS CSS -->
+    <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
 
     <!-- Custom CSS -->
     <link rel="stylesheet" href="css/styles.css">
@@ -15,37 +15,53 @@
     <div id="app">
         <!-- Header / Controls -->
         <header id="controls">
-            <h1>GADM Explorer</h1>
+            <div class="header-top">
+                <h1>GADM Explorer</h1>
+                <button id="reset-view" title="Reset View">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+                    </svg>
+                </button>
+            </div>
+            
             <div class="control-group">
                 <label for="country-select">Select Country:</label>
                 <select id="country-select">
                     <option value="">-- Select a country --</option>
                 </select>
             </div>
+
             <div class="control-group" id="admin-levels-container" style="display: none;">
-                <label>Administrative Level:</label>
+                <div id="level-info"></div>
                 <div id="admin-level-buttons"></div>
             </div>
+
             <div id="loading-indicator" style="display: none;">
                 <span class="spinner"></span>
                 <span id="loading-text">Loading...</span>
+            </div>
+            
+            <div id="legend">
+                <h3>Legend</h3>
+                <div class="legend-item"><span class="color-box" style="border-color: #FFD700;"></span> Level 0 (Country)</div>
+                <div class="legend-item"><span class="color-box" style="background: #00FFFF;"></span> Level 1</div>
+                <div class="legend-item"><span class="color-box" style="background: #FF00FF;"></span> Level 2</div>
+                <div class="legend-item"><span class="color-box" style="background: #FF6600;"></span> Level 3</div>
+                <div class="legend-item"><span class="color-box" style="background: #00FF00;"></span> Level 4+</div>
             </div>
         </header>
 
         <!-- Map Container -->
         <div id="map"></div>
-
-        <!-- Info Panel -->
-        <div id="info-panel" style="display: none;">
-            <button id="close-info">&times;</button>
-            <div id="info-content"></div>
-        </div>
     </div>
 
-    <!-- Leaflet JS -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- MapLibre GL JS -->
+    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+    
+    <!-- PMTiles -->
+    <script src="https://unpkg.com/pmtiles@3.0.6/js/index.js"></script>
 
-    <!-- Application JS (as module for DuckDB) -->
+    <!-- Application JS -->
     <script type="module" src="js/app.js"></script>
 </body>
 </html>

@@ -1,0 +1,13 @@
+# Ignore large GeoJSON intermediate files
+data/*.geojson
+
+# Ignore Python cache
+__pycache__/
+*.pyc
+
+# Optional: Ignore large PMTiles if not using Git LFS
+# data/gadm_level2.pmtiles
+# data/gadm_level3.pmtiles
+
+# DS_Store
+.DS_Store

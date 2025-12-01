@@ -1,405 +1,281 @@
 /**
  * Global Administrative Boundaries Explorer
- * Uses DuckDB-WASM to query GeoParquet files and Leaflet for visualization
+ * Uses MapLibre GL JS and PMTiles
  */
 
 // Global state
 let map;
-let db = null;
-let conn = null;
-let duckDBReady = false;
-let countriesData = null;
+let protocol;
 let currentCountry = null;
-let currentLevel = null;
-let boundaryLayer = null;
+let activeLevel = 0;
+let countriesData = null;
 
-// DuckDB module reference
-let duckdbModule = null;
+// Styling configuration
+const STYLES = {
+    0: { color: '#FFD700', fill: 'transparent', width: 2, opacity: 0 },
+    1: { color: '#00FFFF', fill: '#00FFFF', width: 1, opacity: 0.15 },
+    2: { color: '#FF00FF', fill: '#FF00FF', width: 1, opacity: 0.15 },
+    3: { color: '#FF6600', fill: '#FF6600', width: 1, opacity: 0.15 },
+    4: { color: '#00FF00', fill: '#00FF00', width: 1, opacity: 0.15 },
+    5: { color: '#00FF00', fill: '#00FF00', width: 1, opacity: 0.15 }
+};
 
 // Initialize the application
 async function init() {
+    // Initialize PMTiles protocol
+    protocol = new pmtiles.Protocol();
+    maplibregl.addProtocol("pmtiles", protocol.tile);
+
     // Initialize map
     initMap();
 
-    // Load countries metadata (doesn't need DuckDB)
+    // Load countries metadata
     await loadCountriesMetadata();
 
     // Set up event listeners
     setupEventListeners();
-
-    // Initialize DuckDB
-    await initDuckDB();
 }
 
-// Initialize Leaflet map with dark basemap
+// Initialize MapLibre map
 function initMap() {
-    map = L.map('map', {
-        center: [20, 0],
-        zoom: 2,
-        minZoom: 2,
-        maxZoom: 18
+    map = new maplibregl.Map({
+        container: 'map',
+        style: {
+            version: 8,
+            sources: {
+                'carto-dark': {
+                    type: 'raster',
+                    tiles: [
+                        'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
+                        'https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
+                        'https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
+                        'https://d.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png'
+                    ],
+                    tileSize: 256,
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+                }
+            },
+            layers: [
+                {
+                    id: 'basemap',
+                    type: 'raster',
+                    source: 'carto-dark',
+                    minzoom: 0,
+                    maxzoom: 20
+                }
+            ]
+        },
+        center: [0, 20],
+        zoom: 2
     });
 
-    // Dark basemap - CartoDB Dark Matter (shows country boundaries)
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a> | Data: <a href="https://gadm.org">GADM</a>',
-        subdomains: 'abcd',
-        maxZoom: 20
-    }).addTo(map);
+    map.addControl(new maplibregl.NavigationControl(), 'bottom-right');
+
+    map.on('load', () => {
+        // Add Level 0 (Countries) source and layer by default
+        addLevelLayer(0, true);
+    });
 }
 
-// Initialize DuckDB WASM
-async function initDuckDB() {
-    showLoading('Initializing database...');
+// Add a PMTiles source and layer for a specific admin level
+function addLevelLayer(level, isVisible = false) {
+    const sourceId = `gadm-level${level}`;
+    
+    if (!map.getSource(sourceId)) {
+        map.addSource(sourceId, {
+            type: 'vector',
+            url: `pmtiles://data/gadm_level${level}.pmtiles`,
+            attribution: 'GADM'
+        });
+    }
 
-    try {
-        // Dynamically import DuckDB-WASM
-        duckdbModule = await import('https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.28.0/+esm');
-
-        // Configure DuckDB bundles
-        const MANUAL_BUNDLES = {
-            mvp: {
-                mainModule: 'https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.28.0/dist/duckdb-mvp.wasm',
-                mainWorker: 'https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.28.0/dist/duckdb-browser-mvp.worker.js',
+    // Line layer (borders)
+    const lineLayerId = `layer-line-${level}`;
+    if (!map.getLayer(lineLayerId)) {
+        map.addLayer({
+            id: lineLayerId,
+            type: 'line',
+            source: sourceId,
+            'source-layer': level === 0 ? 'countries' : `admin${level}`, // Adjust based on tippecanoe layer name
+            layout: {
+                'visibility': isVisible ? 'visible' : 'none'
             },
-            eh: {
-                mainModule: 'https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.28.0/dist/duckdb-eh.wasm',
-                mainWorker: 'https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.28.0/dist/duckdb-browser-eh.worker.js',
+            paint: {
+                'line-color': STYLES[level].color,
+                'line-width': STYLES[level].width
+            }
+        });
+    }
+
+    // Fill layer (interactive)
+    const fillLayerId = `layer-fill-${level}`;
+    if (!map.getLayer(fillLayerId)) {
+        map.addLayer({
+            id: fillLayerId,
+            type: 'fill',
+            source: sourceId,
+            'source-layer': level === 0 ? 'countries' : `admin${level}`,
+            layout: {
+                'visibility': isVisible ? 'visible' : 'none'
             },
-        };
+            paint: {
+                'fill-color': STYLES[level].fill,
+                'fill-opacity': STYLES[level].opacity,
+                'fill-outline-color': STYLES[level].color
+            }
+        }, lineLayerId); // Place fill below line
 
-        // Select the best bundle for this browser
-        const bundle = await duckdbModule.selectBundle(MANUAL_BUNDLES);
-
-        // Create worker
-        const worker = new Worker(bundle.mainWorker);
-        const logger = new duckdbModule.ConsoleLogger(duckdbModule.LogLevel.WARNING);
-
-        // Instantiate DuckDB
-        db = new duckdbModule.AsyncDuckDB(logger, worker);
-        await db.instantiate(bundle.mainModule);
-
-        // Create connection
-        conn = await db.connect();
-
-        // Load spatial extension
-        await conn.query(`INSTALL spatial`);
-        await conn.query(`LOAD spatial`);
-
-        duckDBReady = true;
-        hideLoading();
-        console.log('DuckDB initialized successfully');
-    } catch (error) {
-        console.error('Failed to initialize DuckDB:', error);
-        hideLoading();
-        showError('Failed to initialize database: ' + error.message);
+        // Interactions
+        map.on('click', fillLayerId, (e) => handleFeatureClick(e, level));
+        map.on('mouseenter', fillLayerId, () => map.getCanvas().style.cursor = 'pointer');
+        map.on('mouseleave', fillLayerId, () => map.getCanvas().style.cursor = '');
     }
 }
 
-// Show error message
-function showError(message) {
-    // Remove any existing error
-    const existing = document.getElementById('error-message');
-    if (existing) existing.remove();
-
-    const errorDiv = document.createElement('div');
-    errorDiv.id = 'error-message';
-    errorDiv.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#c0392b;color:white;padding:20px 30px;border-radius:8px;z-index:9999;max-width:80%;text-align:center;';
-    errorDiv.innerHTML = `<strong>Error:</strong> ${message}<br><br><button onclick="location.reload()" style="padding:8px 16px;cursor:pointer;">Refresh Page</button>`;
-    document.body.appendChild(errorDiv);
-}
-
-// Wait for DuckDB to be ready
-async function waitForDuckDB() {
-    if (duckDBReady && conn) return true;
-
-    // Wait up to 30 seconds for DuckDB to initialize
-    for (let i = 0; i < 60; i++) {
-        await new Promise(resolve => setTimeout(resolve, 500));
-        if (duckDBReady && conn) return true;
+// Toggle layer visibility
+function setLayerVisibility(level, isVisible) {
+    const visibility = isVisible ? 'visible' : 'none';
+    
+    if (map.getLayer(`layer-line-${level}`)) {
+        map.setLayoutProperty(`layer-line-${level}`, 'visibility', visibility);
     }
-
-    return false;
+    if (map.getLayer(`layer-fill-${level}`)) {
+        map.setLayoutProperty(`layer-fill-${level}`, 'visibility', visibility);
+    }
 }
 
 // Load countries metadata
 async function loadCountriesMetadata() {
-    showLoading('Loading countries...');
-
     try {
         const response = await fetch('data/countries.json');
-        countriesData = await response.json();
+        const data = await response.json();
+        countriesData = data.countries;
 
         // Populate country dropdown
         const select = document.getElementById('country-select');
-        countriesData.countries
+        countriesData
             .sort((a, b) => a.name.localeCompare(b.name))
             .forEach(country => {
                 const option = document.createElement('option');
-                option.value = country.filename;
+                option.value = country.name;
                 option.textContent = country.name;
-                option.dataset.bounds = JSON.stringify(country.bounds);
-                option.dataset.levels = JSON.stringify(country.admin_levels);
-                option.dataset.name = country.name;
                 select.appendChild(option);
             });
-
-        hideLoading();
+            
     } catch (error) {
         console.error('Failed to load countries:', error);
-        hideLoading();
-        showError('Failed to load country list. Please refresh the page.');
+        alert('Failed to load country list. Please ensure data/countries.json exists.');
     }
 }
 
 // Set up event listeners
 function setupEventListeners() {
-    // Country selection
     document.getElementById('country-select').addEventListener('change', handleCountryChange);
-
-    // Close info panel
-    document.getElementById('close-info').addEventListener('click', () => {
-        document.getElementById('info-panel').style.display = 'none';
+    document.getElementById('reset-view').addEventListener('click', () => {
+        map.flyTo({ center: [0, 20], zoom: 2 });
+        document.getElementById('country-select').value = '';
+        resetAdminLevels();
     });
 }
 
 // Handle country selection
-async function handleCountryChange(event) {
-    const select = event.target;
-    const selectedOption = select.options[select.selectedIndex];
+function handleCountryChange(event) {
+    const countryName = event.target.value;
+    if (!countryName) return;
 
-    if (!selectedOption.value) {
-        // Reset view
-        document.getElementById('admin-levels-container').style.display = 'none';
-        if (boundaryLayer) {
-            map.removeLayer(boundaryLayer);
-            boundaryLayer = null;
-        }
-        map.setView([20, 0], 2);
-        return;
-    }
+    const country = countriesData.find(c => c.name === countryName);
+    if (country) {
+        currentCountry = country;
+        
+        // Fly to country
+        map.fitBounds([
+            [country.bounds[0], country.bounds[1]], // sw
+            [country.bounds[2], country.bounds[3]]  // ne
+        ], { padding: 50 });
 
-    currentCountry = {
-        filename: selectedOption.value,
-        name: selectedOption.dataset.name,
-        bounds: JSON.parse(selectedOption.dataset.bounds),
-        levels: JSON.parse(selectedOption.dataset.levels)
-    };
-
-    // Zoom to country bounds
-    const [minX, minY, maxX, maxY] = currentCountry.bounds;
-    map.fitBounds([[minY, minX], [maxY, maxX]], { padding: [20, 20] });
-
-    // Show admin level buttons
-    showAdminLevelButtons(currentCountry.levels);
-
-    // Clear existing boundaries
-    if (boundaryLayer) {
-        map.removeLayer(boundaryLayer);
-        boundaryLayer = null;
-    }
-
-    // Auto-load the first available level
-    if (currentCountry.levels.length > 0) {
-        await loadBoundaries(currentCountry.levels[0]);
+        // Update UI for admin levels
+        updateAdminLevelUI(country);
     }
 }
 
-// Show admin level buttons
-function showAdminLevelButtons(levels) {
+// Update Admin Level Buttons
+function updateAdminLevelUI(country) {
     const container = document.getElementById('admin-levels-container');
     const buttonsDiv = document.getElementById('admin-level-buttons');
+    const infoDiv = document.getElementById('level-info');
+    
+    container.style.display = 'flex';
     buttonsDiv.innerHTML = '';
+    infoDiv.textContent = `This country has ${country.admin_levels.length} administrative levels.`;
 
-    const levelNames = {
-        1: 'Level 1 (States/Provinces)',
-        2: 'Level 2 (Districts/Counties)',
-        3: 'Level 3 (Municipalities)',
-        4: 'Level 4 (Sub-municipalities)',
-        5: 'Level 5 (Villages/Wards)'
+    // Always show Level 0
+    createLevelButton(0, 'Country Boundary', true);
+
+    // Show available levels
+    country.admin_levels.forEach(level => {
+        createLevelButton(level, `Level ${level}`);
+    });
+}
+
+function createLevelButton(level, label, active = false) {
+    const btn = document.createElement('button');
+    btn.className = `admin-level-btn ${active ? 'active' : ''}`;
+    btn.textContent = label;
+    btn.onclick = () => {
+        // Toggle active state
+        const isActive = btn.classList.toggle('active');
+        
+        // Ensure source/layer exists
+        addLevelLayer(level, isActive);
+        
+        // Toggle visibility
+        setLayerVisibility(level, isActive);
     };
-
-    levels.forEach(level => {
-        const btn = document.createElement('button');
-        btn.className = 'admin-level-btn';
-        btn.textContent = levelNames[level] || `Level ${level}`;
-        btn.dataset.level = level;
-        btn.addEventListener('click', () => loadBoundaries(level));
-        buttonsDiv.appendChild(btn);
-    });
-
-    container.style.display = 'block';
+    
+    document.getElementById('admin-level-buttons').appendChild(btn);
+    
+    // Initialize layer if it doesn't exist, but respect 'active' for visibility
+    addLevelLayer(level, active);
+    setLayerVisibility(level, active);
 }
 
-// Load boundaries for a specific admin level
-async function loadBoundaries(level) {
-    if (!currentCountry) return;
-
-    showLoading(`Loading Level ${level} boundaries...`);
-    currentLevel = level;
-
-    // Update button states
-    document.querySelectorAll('.admin-level-btn').forEach(btn => {
-        btn.classList.toggle('active', parseInt(btn.dataset.level) === level);
-    });
-
-    // Wait for DuckDB to be ready
-    if (!duckDBReady || !conn) {
-        const ready = await waitForDuckDB();
-        if (!ready) {
-            hideLoading();
-            showError('Database failed to initialize. Please refresh the page.');
-            return;
-        }
+function resetAdminLevels() {
+    document.getElementById('admin-levels-container').style.display = 'none';
+    
+    // Hide all levels except 0
+    for (let i = 1; i <= 5; i++) {
+        setLayerVisibility(i, false);
     }
-
-    try {
-        // Get the base URL for the data files
-        const baseUrl = new URL('.', window.location.href).href;
-        const parquetUrl = `${baseUrl}data/${currentCountry.filename}`;
-
-        // Query the parquet file
-        const nameCol = `NAME_${level}`;
-        const typeCol = `TYPE_${level}`;
-        const engTypeCol = `ENGTYPE_${level}`;
-        const gidCol = `GID_${level}`;
-
-        // Build query to get unique boundaries at this level
-        const query = `
-            SELECT
-                ${nameCol} as name,
-                ${typeCol} as type,
-                ${engTypeCol} as eng_type,
-                ${gidCol} as gid,
-                NAME_0 as country,
-                ${level > 1 ? `NAME_${level-1} as parent,` : ''}
-                ST_AsGeoJSON(ST_Union_Agg(ST_GeomFromWKB(geometry))) as geojson
-            FROM '${parquetUrl}'
-            WHERE ${nameCol} IS NOT NULL AND ${nameCol} != ''
-            GROUP BY ${nameCol}, ${typeCol}, ${engTypeCol}, ${gidCol}, NAME_0${level > 1 ? `, NAME_${level-1}` : ''}
-        `;
-
-        const result = await conn.query(query);
-        const rows = result.toArray();
-
-        // Create GeoJSON features
-        const features = rows.map(row => {
-            const props = {
-                name: row.name,
-                type: row.type,
-                eng_type: row.eng_type,
-                gid: row.gid,
-                country: row.country,
-                level: level
-            };
-            if (row.parent) {
-                props.parent = row.parent;
-            }
-
-            let geometry;
-            try {
-                geometry = JSON.parse(row.geojson);
-            } catch (e) {
-                console.warn('Failed to parse geometry for', row.name);
-                return null;
-            }
-
-            return {
-                type: 'Feature',
-                properties: props,
-                geometry: geometry
-            };
-        }).filter(f => f !== null);
-
-        const geojson = {
-            type: 'FeatureCollection',
-            features: features
-        };
-
-        // Remove existing layer
-        if (boundaryLayer) {
-            map.removeLayer(boundaryLayer);
-        }
-
-        // Add new layer with yellow border styling
-        boundaryLayer = L.geoJSON(geojson, {
-            style: {
-                color: '#FFD700',      // Gold/yellow border
-                weight: 3,              // Thick border
-                fillColor: '#FFD700',
-                fillOpacity: 0.1
-            },
-            onEachFeature: (feature, layer) => {
-                layer.on({
-                    click: () => showFeatureInfo(feature.properties),
-                    mouseover: (e) => {
-                        e.target.setStyle({
-                            weight: 5,          // Even thicker on hover
-                            fillOpacity: 0.25
-                        });
-                        e.target.bringToFront();
-                    },
-                    mouseout: (e) => {
-                        boundaryLayer.resetStyle(e.target);
-                    }
-                });
-            }
-        }).addTo(map);
-
-        hideLoading();
-    } catch (error) {
-        console.error('Failed to load boundaries:', error);
-        hideLoading();
-        showError(`Failed to load boundaries: ${error.message}`);
-    }
+    setLayerVisibility(0, true);
 }
 
-// Show feature information in the info panel
-function showFeatureInfo(props) {
-    const panel = document.getElementById('info-panel');
-    const content = document.getElementById('info-content');
+// Handle feature click (popup)
+function handleFeatureClick(e, level) {
+    const props = e.features[0].properties;
+    
+    let content = `<div class="popup-title">${props[`NAME_${level}`] || props.name || 'Unknown'}</div>`;
+    content += `<table class="popup-table">`;
+    
+    // Hierarchy
+    if (level > 0) content += `<tr><td>Country</td><td>${props.NAME_0 || props.country}</td></tr>`;
+    if (level > 1) content += `<tr><td>Level 1</td><td>${props.NAME_1}</td></tr>`;
+    if (level > 2) content += `<tr><td>Level 2</td><td>${props.NAME_2}</td></tr>`;
+    
+    // Type
+    const type = props[`TYPE_${level}`] || props.type;
+    const engType = props[`ENGTYPE_${level}`] || props.engtype;
+    
+    if (type) content += `<tr><td>Type</td><td>${type}</td></tr>`;
+    if (engType && engType !== type) content += `<tr><td>Type (En)</td><td>${engType}</td></tr>`;
+    
+    // Codes
+    const gid = props[`GID_${level}`] || props.gid;
+    if (gid) content += `<tr><td>GID</td><td>${gid}</td></tr>`;
+    
+    content += `</table>`;
 
-    let html = `<h3>${props.name}</h3>`;
-    html += `<table>`;
-    html += `<tr><td><strong>Country:</strong></td><td>${props.country}</td></tr>`;
-
-    if (props.parent) {
-        html += `<tr><td><strong>Parent Region:</strong></td><td>${props.parent}</td></tr>`;
-    }
-
-    if (props.type) {
-        html += `<tr><td><strong>Type:</strong></td><td>${props.type}</td></tr>`;
-    }
-
-    if (props.eng_type && props.eng_type !== props.type) {
-        html += `<tr><td><strong>Type (English):</strong></td><td>${props.eng_type}</td></tr>`;
-    }
-
-    html += `<tr><td><strong>Admin Level:</strong></td><td>${props.level}</td></tr>`;
-
-    if (props.gid) {
-        html += `<tr><td><strong>GID:</strong></td><td>${props.gid}</td></tr>`;
-    }
-
-    html += `</table>`;
-
-    content.innerHTML = html;
-    panel.style.display = 'block';
-}
-
-// Loading indicator functions
-function showLoading(text = 'Loading...') {
-    document.getElementById('loading-text').textContent = text;
-    document.getElementById('loading-indicator').style.display = 'flex';
-}
-
-function hideLoading() {
-    document.getElementById('loading-indicator').style.display = 'none';
-}
-
-// Start the application when DOM is ready
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-} else {
-    init();
+    new maplibregl.Popup()
+        .setLngLat(e.lngLat)
+        .setHTML(content)
+        .addTo(map);
 }
