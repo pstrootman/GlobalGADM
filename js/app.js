@@ -81,6 +81,11 @@ function initMap() {
     });
 }
 
+// Store event handlers to allow removal
+const layerClickHandlers = {};
+const layerHoverHandlers = {};
+const layerLeaveHandlers = {};
+
 // Add a PMTiles source and layer for a specific admin level
 function addLevelLayer(level, isVisible = false) {
     const sourceId = `gadm-level${level}`;
@@ -144,10 +149,26 @@ function addLevelLayer(level, isVisible = false) {
 
         map.addLayer(fillDef, lineLayerId); // Place fill below line
 
-        // Interactions
-        map.on('click', fillLayerId, (e) => handleFeatureClick(e, level));
-        map.on('mouseenter', fillLayerId, () => map.getCanvas().style.cursor = 'pointer');
-        map.on('mouseleave', fillLayerId, () => map.getCanvas().style.cursor = '');
+        // Clean up existing listeners if any (to prevent duplicates)
+        if (layerClickHandlers[level]) {
+            map.off('click', fillLayerId, layerClickHandlers[level]);
+        }
+        if (layerHoverHandlers[level]) {
+            map.off('mouseenter', fillLayerId, layerHoverHandlers[level]);
+        }
+        if (layerLeaveHandlers[level]) {
+            map.off('mouseleave', fillLayerId, layerLeaveHandlers[level]);
+        }
+
+        // Create and store new handlers
+        layerClickHandlers[level] = (e) => handleFeatureClick(e, level);
+        layerHoverHandlers[level] = () => map.getCanvas().style.cursor = 'pointer';
+        layerLeaveHandlers[level] = () => map.getCanvas().style.cursor = '';
+
+        // Add listeners
+        map.on('click', fillLayerId, layerClickHandlers[level]);
+        map.on('mouseenter', fillLayerId, layerHoverHandlers[level]);
+        map.on('mouseleave', fillLayerId, layerLeaveHandlers[level]);
     }
 }
 
