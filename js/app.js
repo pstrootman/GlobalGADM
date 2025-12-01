@@ -20,84 +20,6 @@ const STYLES = {
     5: { color: '#1DE9B6', fill: '#1DE9B6', width: 1.5, opacity: 0.2 }  // Teal Accent
 };
 
-// ... (init and initMap functions remain unchanged) ...
-
-// Handle country selection
-function handleCountryChange(event) {
-    const countryName = event.target.value;
-
-    // Reset if empty
-    if (!countryName) {
-        currentCountry = null;
-        resetAdminLevels();
-
-        // Reset Level 0 style
-        if (map.getLayer('layer-line-0')) {
-            map.setPaintProperty('layer-line-0', 'line-color', STYLES[0].color);
-            map.setPaintProperty('layer-line-0', 'line-width', STYLES[0].width);
-        }
-        return;
-    }
-
-    const country = countriesData.find(c => c.name === countryName);
-    if (country) {
-        currentCountry = country;
-
-        // Fly to country
-        map.fitBounds([
-            [country.bounds[0], country.bounds[1]], // sw
-            [country.bounds[2], country.bounds[3]]  // ne
-        ], { padding: 50 });
-
-        // Highlight Level 0 (Country Boundary)
-        if (map.getLayer('layer-line-0')) {
-            // Use data-driven styling to highlight selected country
-            // Assuming 'GID_0' or 'NAME_0' matches. Using 'NAME_0' (or 'name') based on metadata.
-            // Metadata has 'iso_a2' or similar? Let's use name for now as it matches dropdown.
-            // Actually, GADM usually has 'GID_0'. Let's try to match by name if possible, or ISO.
-            // The metadata `countries.json` likely has ISO.
-
-            // Highlight logic: Purple (#D500F9) and Thick (4px) for selected, default for others.
-            map.setPaintProperty('layer-line-0', 'line-color', [
-                'case',
-                ['==', ['get', 'NAME_0'], country.name],
-                '#D500F9',
-                '#000000'
-            ]);
-            map.setPaintProperty('layer-line-0', 'line-width', [
-                'case',
-                ['==', ['get', 'NAME_0'], country.name],
-                4,
-                STYLES[0].width
-            ]);
-        }
-
-        // Update UI for admin levels
-        updateAdminLevelUI(country);
-
-        // Apply filter to existing admin levels if they are visible
-        // We will do this in setLayerVisibility or a new helper
-        updateLayerFilters(country.name);
-    }
-}
-
-function updateLayerFilters(countryName) {
-    // Filter all admin levels (1-5) to only show features for this country
-    for (let i = 1; i <= 5; i++) {
-        const layerId = `layer-line-${i}`;
-        const fillId = `layer-fill-${i}`;
-
-        const filter = ['==', ['get', 'NAME_0'], countryName];
-
-        if (map.getLayer(layerId)) {
-            map.setFilter(layerId, filter);
-        }
-        if (map.getLayer(fillId)) {
-            map.setFilter(fillId, filter);
-        }
-    }
-}
-
 // Initialize the application
 async function init() {
     try {
@@ -174,6 +96,7 @@ function addLevelLayer(level, isVisible = false) {
     // Line layer (borders)
     const lineLayerId = `layer-line-${level}`;
     if (!map.getLayer(lineLayerId)) {
+        console.log(`Creating layer ${lineLayerId} for ${currentCountry ? currentCountry.name : 'all'}`);
         const layerDef = {
             id: lineLayerId,
             type: 'line',
@@ -230,13 +153,32 @@ function addLevelLayer(level, isVisible = false) {
 
 // Toggle layer visibility
 function setLayerVisibility(level, isVisible) {
-    const visibility = isVisible ? 'visible' : 'none';
+    const lineId = `layer-line-${level}`;
+    const fillId = `layer-fill-${level}`;
 
-    if (map.getLayer(`layer-line-${level}`)) {
-        map.setLayoutProperty(`layer-line-${level}`, 'visibility', visibility);
+    if (map.getLayer(lineId)) {
+        map.setLayoutProperty(lineId, 'visibility', isVisible ? 'visible' : 'none');
     }
-    if (map.getLayer(`layer-fill-${level}`)) {
-        map.setLayoutProperty(`layer-fill-${level}`, 'visibility', visibility);
+    if (map.getLayer(fillId)) {
+        map.setLayoutProperty(fillId, 'visibility', isVisible ? 'visible' : 'none');
+    }
+}
+
+// Reset admin levels (hide all, clear UI)
+function resetAdminLevels() {
+    const buttonsDiv = document.getElementById('admin-level-buttons');
+    if (buttonsDiv) buttonsDiv.innerHTML = '';
+
+    const container = document.getElementById('admin-levels-container');
+    if (container) container.style.display = 'none';
+
+    // Remove all admin layers (except 0 if we want to keep it, but logic below handles 0 separately)
+    // Actually, let's remove 1-5. Level 0 is usually kept but reset style.
+    for (let i = 1; i <= 5; i++) {
+        const lineId = `layer-line-${i}`;
+        const fillId = `layer-fill-${i}`;
+        if (map.getLayer(fillId)) map.removeLayer(fillId);
+        if (map.getLayer(lineId)) map.removeLayer(lineId);
     }
 }
 
@@ -252,6 +194,7 @@ async function loadCountriesMetadata() {
         countriesData
             .sort((a, b) => a.name.localeCompare(b.name))
             .forEach(country => {
+                country.name = country.name.trim(); // Ensure no whitespace issues
                 const option = document.createElement('option');
                 option.value = country.name;
                 option.textContent = country.name;
@@ -270,17 +213,38 @@ function setupEventListeners() {
     document.getElementById('reset-view').addEventListener('click', () => {
         map.flyTo({ center: [0, 20], zoom: 2 });
         document.getElementById('country-select').value = '';
+
+        currentCountry = null;
         resetAdminLevels();
+
+        // Reset Level 0 style
+        if (map.getLayer('layer-line-0')) {
+            map.setPaintProperty('layer-line-0', 'line-color', STYLES[0].color);
+            map.setPaintProperty('layer-line-0', 'line-width', STYLES[0].width);
+        }
     });
 }
 
 // Handle country selection
 function handleCountryChange(event) {
     const countryName = event.target.value;
-    if (!countryName) return;
+
+    // Reset if empty
+    if (!countryName) {
+        currentCountry = null;
+        resetAdminLevels();
+
+        // Reset Level 0 style
+        if (map.getLayer('layer-line-0')) {
+            map.setPaintProperty('layer-line-0', 'line-color', STYLES[0].color);
+            map.setPaintProperty('layer-line-0', 'line-width', STYLES[0].width);
+        }
+        return;
+    }
 
     const country = countriesData.find(c => c.name === countryName);
     if (country) {
+        console.log('Selected country:', country.name);
         currentCountry = country;
 
         // Fly to country
@@ -288,6 +252,31 @@ function handleCountryChange(event) {
             [country.bounds[0], country.bounds[1]], // sw
             [country.bounds[2], country.bounds[3]]  // ne
         ], { padding: 50 });
+
+        // Highlight Level 0 (Country Boundary)
+        if (map.getLayer('layer-line-0')) {
+            // Highlight logic: Purple (#D500F9) and Thick (4px) for selected, default for others.
+            map.setPaintProperty('layer-line-0', 'line-color', [
+                'case',
+                ['==', ['get', 'NAME_0'], country.name],
+                '#D500F9',
+                STYLES[0].color
+            ]);
+            map.setPaintProperty('layer-line-0', 'line-width', [
+                'case',
+                ['==', ['get', 'NAME_0'], country.name],
+                4,
+                STYLES[0].width
+            ]);
+        }
+
+        // Remove existing admin layers to ensure clean state and correct filtering
+        for (let i = 1; i <= 5; i++) {
+            const lineId = `layer-line-${i}`;
+            const fillId = `layer-fill-${i}`;
+            if (map.getLayer(fillId)) map.removeLayer(fillId);
+            if (map.getLayer(lineId)) map.removeLayer(lineId);
+        }
 
         // Update UI for admin levels
         updateAdminLevelUI(country);
@@ -300,19 +289,19 @@ function updateAdminLevelUI(country) {
     const buttonsDiv = document.getElementById('admin-level-buttons');
     const infoDiv = document.getElementById('level-info');
 
-    container.style.display = 'flex';
-    buttonsDiv.innerHTML = '';
-    infoDiv.textContent = `This country has ${country.admin_levels.length} administrative levels.`;
+    if (container) container.style.display = 'flex';
+    if (buttonsDiv) buttonsDiv.innerHTML = '';
+    if (infoDiv) infoDiv.textContent = `This country has ${country.admin_levels.length} administrative levels.`;
 
-    // Always show Level 0
+    // Add button for Level 0 (Country Boundary)
     createLevelButton(0, 'Country Boundary', true);
 
-    // Show available levels
     country.admin_levels.forEach(level => {
         createLevelButton(level, `Level ${level}`);
     });
 }
 
+// Helper to create admin level buttons
 function createLevelButton(level, label, active = false) {
     const btn = document.createElement('button');
     btn.className = `admin-level-btn ${active ? 'active' : ''}`;
@@ -335,19 +324,11 @@ function createLevelButton(level, label, active = false) {
     setLayerVisibility(level, active);
 }
 
-function resetAdminLevels() {
-    document.getElementById('admin-levels-container').style.display = 'none';
-
-    // Hide all levels except 0
-    for (let i = 1; i <= 5; i++) {
-        setLayerVisibility(i, false);
-    }
-    setLayerVisibility(0, true);
-}
-
 // Handle feature click (popup)
 function handleFeatureClick(e, level) {
     const props = e.features[0].properties;
+    window.lastClickedProps = props; // Store for debugging
+    console.log(`Clicked Level ${level} Feature Properties:`, props);
 
     let content = `<div class="popup-title">${props[`NAME_${level}`] || props.name || 'Unknown'}</div>`;
     content += `<table class="popup-table">`;
@@ -375,6 +356,8 @@ function handleFeatureClick(e, level) {
         .setHTML(content)
         .addTo(map);
 }
+
+
 
 // Start the application
 init();
