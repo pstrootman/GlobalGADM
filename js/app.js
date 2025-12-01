@@ -22,6 +22,8 @@ const STYLES = {
 
 // Initialize the application
 async function init() {
+    // Initialize PMTiles protocol
+    protocol = new pmtiles.Protocol();
     maplibregl.addProtocol("pmtiles", (request, callback) => {
         return protocol.tile(request, callback);
     });
