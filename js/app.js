@@ -12,12 +12,12 @@ let countriesData = null;
 
 // Styling configuration
 const STYLES = {
-    0: { color: '#FFD700', fill: 'transparent', width: 2, opacity: 0 },
-    1: { color: '#00FFFF', fill: '#00FFFF', width: 1, opacity: 0.15 },
-    2: { color: '#FF00FF', fill: '#FF00FF', width: 1, opacity: 0.15 },
-    3: { color: '#FF6600', fill: '#FF6600', width: 1, opacity: 0.15 },
-    4: { color: '#00FF00', fill: '#00FF00', width: 1, opacity: 0.15 },
-    5: { color: '#00FF00', fill: '#00FF00', width: 1, opacity: 0.15 }
+    0: { color: '#D500F9', fill: 'transparent', width: 3, opacity: 0 }, // Vibrant Purple/Magenta
+    1: { color: '#651FFF', fill: '#651FFF', width: 2, opacity: 0.2 },   // Deep Purple/Indigo
+    2: { color: '#2979FF', fill: '#2979FF', width: 1.5, opacity: 0.2 }, // Bright Blue
+    3: { color: '#00B0FF', fill: '#00B0FF', width: 1, opacity: 0.2 },   // Light Blue
+    4: { color: '#00E5FF', fill: '#00E5FF', width: 1, opacity: 0.2 },   // Cyan Accent
+    5: { color: '#1DE9B6', fill: '#1DE9B6', width: 1, opacity: 0.2 }    // Teal Accent
 };
 
 // Initialize the application
@@ -43,13 +43,13 @@ function initMap() {
         style: {
             version: 8,
             sources: {
-                'carto-dark': {
+                'carto-light': {
                     type: 'raster',
                     tiles: [
-                        'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
-                        'https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
-                        'https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
-                        'https://d.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png'
+                        'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png',
+                        'https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png',
+                        'https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png',
+                        'https://d.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png'
                     ],
                     tileSize: 256,
                     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
@@ -59,7 +59,7 @@ function initMap() {
                 {
                     id: 'basemap',
                     type: 'raster',
-                    source: 'carto-dark',
+                    source: 'carto-light',
                     minzoom: 0,
                     maxzoom: 20
                 }
