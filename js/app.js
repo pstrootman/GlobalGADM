@@ -3,7 +3,7 @@
  * Uses MapLibre GL JS and PMTiles
  */
 
-import { Protocol } from "https://unpkg.com/pmtiles@3.2.0/dist/index.js";
+import { Protocol } from "https://esm.sh/pmtiles@4.3.0";
 
 // Global state
 let map;
@@ -24,38 +24,22 @@ const STYLES = {
 
 // Initialize the application
 async function init() {
-    // Initialize PMTiles protocol
-    protocol = new Protocol();
-    maplibregl.addProtocol("pmtiles", (request, abortController) => {
-        return new Promise((resolve, reject) => {
-            const callback = (err, data) => {
-                if (err) {
-                    reject(err);
-                } else {
-                    resolve(data);
-                }
-            };
-            const cancelable = protocol.tile(request, callback);
+    try {
+        // Initialize PMTiles protocol
+        protocol = new Protocol({ metadata: true });
+        maplibregl.addProtocol("pmtiles", protocol.tile);
 
-            // Handle cancellation
-            if (abortController && abortController.signal) {
-                abortController.signal.addEventListener('abort', () => {
-                    if (cancelable && cancelable.cancel) {
-                        cancelable.cancel();
-                    }
-                });
-            }
-        });
-    });
+        // Initialize map
+        initMap();
 
-    // Initialize map
-    initMap();
+        // Load countries metadata
+        await loadCountriesMetadata();
 
-    // Load countries metadata
-    await loadCountriesMetadata();
-
-    // Set up event listeners
-    setupEventListeners();
+        // Set up event listeners
+        setupEventListeners();
+    } catch (e) {
+        console.error('Init failed:', e);
+    }
 }
 
 // Initialize MapLibre map
