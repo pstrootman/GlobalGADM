@@ -46,6 +46,7 @@ function initMap() {
         container: 'map',
         style: {
             version: 8,
+            glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
             sources: {},
             layers: [
                 {
@@ -69,10 +70,6 @@ function initMap() {
 
         // Add Country Labels
         // We need to ensure the source exists first, which addLevelLayer(0) does.
-        // But addLevelLayer is async in terms of source loading? No, addSource is sync.
-        // Let's add the label layer after a brief moment or ensure it uses the same source.
-        // Actually, addLevelLayer adds the source 'gadm-level0'. We can reuse it.
-
         if (!map.getLayer('country-labels')) {
             map.addLayer({
                 id: 'country-labels',
@@ -81,9 +78,7 @@ function initMap() {
                 'source-layer': 'countries',
                 layout: {
                     'text-field': ['get', 'NAME_0'],
-                    'text-font': ['Open Sans Bold'], // MapLibre default fonts might need checking, usually 'Open Sans Regular' is available if using a style that defines glyphs. 
-                    // Wait, we provided a raw style object without 'glyphs'. MapLibre needs a glyphs URL for text.
-                    // We can use a public glyphs URL.
+                    'text-font': ['Open Sans Bold'],
                     'text-size': 12,
                     'text-transform': 'uppercase',
                     'text-variable-anchor': ['center'],
@@ -96,22 +91,6 @@ function initMap() {
                 }
             });
         }
-    });
-
-    // Set glyphs URL for text rendering
-    map.setStyle({
-        version: 8,
-        glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
-        sources: {},
-        layers: [
-            {
-                id: 'background',
-                type: 'background',
-                paint: {
-                    'background-color': '#002244'
-                }
-            }
-        ]
     });
 }
 
