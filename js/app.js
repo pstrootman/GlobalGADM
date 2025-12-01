@@ -3,6 +3,8 @@
  * Uses MapLibre GL JS and PMTiles
  */
 
+import { Protocol } from "https://unpkg.com/pmtiles@3.2.0/dist/index.js";
+
 // Global state
 let map;
 let protocol;
@@ -23,7 +25,7 @@ const STYLES = {
 // Initialize the application
 async function init() {
     // Initialize PMTiles protocol
-    protocol = new pmtiles.Protocol();
+    protocol = new Protocol();
     maplibregl.addProtocol("pmtiles", (request, abortController) => {
         return new Promise((resolve, reject) => {
             const callback = (err, data) => {
