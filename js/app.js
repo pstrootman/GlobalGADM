@@ -24,8 +24,8 @@ const STYLES = {
 async function init() {
     // Initialize PMTiles protocol
     protocol = new pmtiles.Protocol();
-    maplibregl.addProtocol("pmtiles", (request, callback) => {
-        return protocol.tile(request, callback);
+    maplibregl.addProtocol("pmtiles", (request) => {
+        return protocol.tile(request);
     });
 
     // Initialize map
