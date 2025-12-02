@@ -290,19 +290,21 @@ function handleCountryChange(event) {
         console.log('Selected country:', country.name);
         currentCountry = country;
 
-        // Fly to country
+        // Fly to country with padding to offset the left panel (300px width)
         map.fitBounds([
             [country.bounds[0], country.bounds[1]], // sw
             [country.bounds[2], country.bounds[3]]  // ne
-        ], { padding: 50 });
+        ], {
+            padding: { top: 50, bottom: 50, left: 350, right: 50 }
+        });
 
         // Highlight Level 0 (Country Boundary)
         if (map.getLayer('layer-line-0')) {
-            // Highlight logic: Purple (#D500F9) and Thick (4px) for selected, default for others.
+            // Highlight logic: Purple (#800080) and Thick (4px) for selected, default for others.
             map.setPaintProperty('layer-line-0', 'line-color', [
                 'case',
                 ['==', ['get', 'NAME_0'], country.name],
-                '#D500F9',
+                '#800080', // Purple
                 STYLES[0].color
             ]);
             map.setPaintProperty('layer-line-0', 'line-width', [
