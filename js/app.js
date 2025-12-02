@@ -47,14 +47,20 @@ function initMap() {
         style: {
             version: 8,
             glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
-            sources: {},
+            sources: {
+                'carto-light': {
+                    type: 'raster',
+                    tiles: ['https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'],
+                    tileSize: 256,
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+                }
+            },
             layers: [
                 {
-                    id: 'background',
-                    type: 'background',
-                    paint: {
-                        'background-color': '#002244' // Deep Ocean Blue
-                    }
+                    id: 'carto-light',
+                    type: 'raster',
+                    source: 'carto-light',
+                    paint: {}
                 }
             ]
         },
@@ -88,8 +94,8 @@ function initMap() {
                     'text-justify': 'auto'
                 },
                 paint: {
-                    'text-color': '#FFFFFF',
-                    'text-halo-color': '#002244',
+                    'text-color': '#333333',
+                    'text-halo-color': '#FFFFFF',
                     'text-halo-width': 2
                 }
             });
